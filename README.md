@@ -6,7 +6,7 @@ Prototipo para el Proyecto 2
 
 ## Backend
 
-Para la ejecucion del Backend posicionarse en la raiz de la carpeta Clase8
+Para la ejecucion del Backend posicionarse en la raiz de la carpeta
 
 Si es primera vez ejecutar el siguiente comando:
 
