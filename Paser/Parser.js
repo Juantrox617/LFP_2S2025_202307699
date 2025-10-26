@@ -7,6 +7,16 @@ export class Parser {
     this.errors = [];
     this.pythonCode = "";
     this.indent = "";
+    this.className = this.extractClassName(tokens);
+  }
+
+  extractClassName(tokens) {
+    for (let i = 0; i < tokens.length; i++) {
+      if (tokens[i].type === "CLASS" && tokens[i + 1]?.type === "IDENTIFICADOR") {
+        return tokens[i + 1].value;
+      }
+    }
+    return "Unknown";
   }
 
   analizar() {
@@ -30,21 +40,42 @@ export class Parser {
           this.traducirFor();
           break;
 
+        case "WHILE":
+          this.traducirWhile();
+          break;
+
         case "SYSTEM":
           this.traducirPrint();
           break;
 
-        default:
-          this.errors.push(
-            new Error(
-              "Sintáctico",
-              token.value,
-              "Instrucción no válida",
-              token.line,
-              token.column
-            )
-          );
+        case "IDENTIFICADOR":
+          this.asignacionVariable();
+          break;
+
+        case "CLASS":
+        case "PUBLIC":
+        case "STATIC":
+        case "VOID":
+        case "LLAVE_ABRE":
+        case "LLAVE_CIERRA":
           this.pos++;
+          break;
+
+        default:
+          if (token.value === "main" || token.value === "String" || token.value === "[" || token.value === "]") {
+            this.pos++;
+          } else {
+            this.errors.push(
+              new Error(
+                "Sintáctico",
+                token.value,
+                "Instrucción no válida",
+                token.line,
+                token.column
+              )
+            );
+            this.pos++;
+          }
           break;
       }
     }
@@ -53,6 +84,7 @@ export class Parser {
 
   declaracionVariable() {
     const tipo = this.tokens[this.pos].type;
+    const tipoOriginal = this.tokens[this.pos].value;
     this.pos++;
 
     const id = this.tokens[this.pos];
@@ -68,17 +100,36 @@ export class Parser {
       );
       return;
     }
+
     this.pos++;
 
-    const igual = this.tokens[this.pos];
-    if (!igual || igual.value !== "=") {
+    const siguiente = this.tokens[this.pos];
+    
+    if (siguiente?.value === ";") {
+      let valorDefecto = "None";
+      if (tipo === "INT_TYPE" || tipo === "DOUBLE_TYPE") {
+        valorDefecto = "0";
+      } else if (tipo === "BOOLEAN_TYPE") {
+        valorDefecto = "False";
+      } else if (tipo === "STRING_TYPE") {
+        valorDefecto = '""';
+      } else if (tipo === "CHAR_TYPE") {
+        valorDefecto = '""';
+      }
+      
+      this.pythonCode += `${this.indent}${id.value} = ${valorDefecto}\n`;
+      this.pos++;
+      return;
+    }
+
+    if (!siguiente || siguiente.value !== "=") {
       this.errors.push(
         new Error(
           "Sintáctico",
-          igual?.value || "EOF",
-          "Se esperaba '='",
-          igual?.line || 0,
-          igual?.column || 0
+          siguiente?.value || "EOF",
+          "Se esperaba '=' o ';'",
+          siguiente?.line || 0,
+          siguiente?.column || 0
         )
       );
       return;
@@ -119,6 +170,72 @@ export class Parser {
         new Error(
           "Sintáctico",
           fin?.value || "EOF",
+          "Se esperaba ';'",
+          id.line,
+          id.column
+        )
+      );
+  }
+
+  asignacionVariable() {
+    const id = this.tokens[this.pos];
+    this.pos++;
+
+    const siguiente = this.tokens[this.pos];
+    
+    if (siguiente?.value === "++") {
+      this.pythonCode += `${this.indent}${id.value} += 1\n`;
+      this.pos++;
+      if (this.tokens[this.pos]?.value === ";") this.pos++;
+      return;
+    }
+    
+    if (siguiente?.value === "--") {
+      this.pythonCode += `${this.indent}${id.value} -= 1\n`;
+      this.pos++;
+      if (this.tokens[this.pos]?.value === ";") this.pos++;
+      return;
+    }
+
+    if (!siguiente || siguiente.value !== "=") {
+      this.errors.push(
+        new Error(
+          "Sintáctico",
+          siguiente?.value || "EOF",
+          "Se esperaba '=', '++' o '--'",
+          siguiente?.line || 0,
+          siguiente?.column || 0
+        )
+      );
+      return;
+    }
+    this.pos++;
+
+    let expresion = "";
+    while (this.pos < this.tokens.length && this.tokens[this.pos].value !== ";") {
+      const tok = this.tokens[this.pos];
+      if (tok.type === "STRING") {
+        expresion += `"${tok.value}" `;
+      } else if (tok.type === "CHAR") {
+        expresion += `"${tok.value}" `;
+      } else if (tok.value === "true") {
+        expresion += "True ";
+      } else if (tok.value === "false") {
+        expresion += "False ";
+      } else {
+        expresion += tok.value + " ";
+      }
+      this.pos++;
+    }
+
+    this.pythonCode += `${this.indent}${id.value} = ${expresion.trim()}\n`;
+
+    if (this.tokens[this.pos]?.value === ";") this.pos++;
+    else
+      this.errors.push(
+        new Error(
+          "Sintáctico",
+          this.tokens[this.pos]?.value || "EOF",
           "Se esperaba ';'",
           id.line,
           id.column
@@ -259,6 +376,70 @@ export class Parser {
     if (this.tokens[this.pos]?.value === "}") this.pos++;
   }
 
+  traducirWhile() {
+    this.pos++;
+    if (!this.tokens[this.pos] || this.tokens[this.pos].value !== "(") {
+      this.errors.push(
+        new Error("Sintáctico", "while", "Se esperaba '(' después de while", 0, 0)
+      );
+      return;
+    }
+
+    this.pos++;
+    let condicion = "";
+
+    while (this.pos < this.tokens.length && this.tokens[this.pos].value !== ")") {
+      const val = this.tokens[this.pos].value;
+
+      if (val === "=" && condicion.trim().endsWith("=")) {
+        this.pos++;
+        continue;
+      }
+
+      condicion += val + " ";
+      this.pos++;
+    }
+
+    if (this.tokens[this.pos]?.value !== ")") {
+      this.errors.push(
+        new Error("Sintáctico", "while", "Falta ')' en condición", 0, 0)
+      );
+      return;
+    }
+    this.pos++;
+
+    this.pythonCode += `${this.indent}while ${condicion.trim()}:\n`;
+
+    if (this.tokens[this.pos]?.value !== "{") {
+      this.errors.push(
+        new Error("Sintáctico", "while", "Se esperaba '{' después de while", 0, 0)
+      );
+      return;
+    }
+    this.pos++;
+
+    this.indent += "    ";
+    while (
+      this.pos < this.tokens.length &&
+      this.tokens[this.pos].value !== "}"
+    ) {
+      this.traducirLineaBloque();
+    }
+    this.indent = this.indent.slice(0, -4);
+
+    if (this.tokens[this.pos]?.value === "}") this.pos++;
+    else
+      this.errors.push(
+        new Error(
+          "Sintáctico",
+          "while",
+          "Se esperaba '}' al final del bloque while",
+          0,
+          0
+        )
+      );
+  }
+
   traducirPrint() {
     this.pos++;
     this.pos += 3;
@@ -269,15 +450,32 @@ export class Parser {
     if (this.tokens[this.pos]?.value !== "(") return;
     this.pos++;
 
-    let contenido = "";
+    let partes = [];
+    let esConcatenacion = false;
+
     while (this.pos < this.tokens.length && this.tokens[this.pos].value !== ")") {
       const tok = this.tokens[this.pos];
+      
+      if (tok.value === "+") {
+        esConcatenacion = true;
+        this.pos++;
+        continue;
+      }
+
       if (tok.type === "STRING") {
-        contenido += `"${tok.value}" `;
+        partes.push(`"${tok.value}"`);
       } else if (tok.type === "CHAR") {
-        contenido += `'${tok.value}' `;
+        partes.push(`"${tok.value}"`);
+      } else if (tok.value === "true") {
+        partes.push("True");
+      } else if (tok.value === "false") {
+        partes.push("False");
+      } else if (tok.type === "IDENTIFICADOR" && esConcatenacion) {
+        partes.push(`str(${tok.value})`);
+      } else if (tok.type === "NUMERO" && esConcatenacion) {
+        partes.push(`str(${tok.value})`);
       } else {
-        contenido += tok.value + " ";
+        partes.push(tok.value);
       }
       this.pos++;
     }
@@ -285,7 +483,11 @@ export class Parser {
     this.pos++;
     if (this.tokens[this.pos]?.value === ";") this.pos++;
 
-    this.pythonCode += `${this.indent}print(${contenido.trim()})\n`;
+    if (esConcatenacion) {
+      this.pythonCode += `${this.indent}print(${partes.join(" + ")})\n`;
+    } else {
+      this.pythonCode += `${this.indent}print(${partes.join(", ")})\n`;
+    }
   }
 
   traducirLineaBloque() {
@@ -304,8 +506,14 @@ export class Parser {
       case "FOR":
         this.traducirFor();
         break;
+      case "WHILE":
+        this.traducirWhile();
+        break;
       case "SYSTEM":
         this.traducirPrint();
+        break;
+      case "IDENTIFICADOR":
+        this.asignacionVariable();
         break;
       default:
         this.pos++;
