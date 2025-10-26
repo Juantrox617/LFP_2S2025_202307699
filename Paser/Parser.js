@@ -27,7 +27,6 @@ export class Parser {
         case "INT_TYPE":
         case "DOUBLE_TYPE":
         case "CHAR_TYPE":
-        case "STRING_TYPE":
         case "BOOLEAN_TYPE":
           this.declaracionVariable();
           break;
@@ -49,20 +48,49 @@ export class Parser {
           break;
 
         case "IDENTIFICADOR":
-          this.asignacionVariable();
+          if (this.tokens[this.pos + 1]?.value === "=" || 
+              this.tokens[this.pos + 1]?.value === "++" || 
+              this.tokens[this.pos + 1]?.value === "--") {
+            this.asignacionVariable();
+          } else {
+            this.pos++;
+          }
           break;
 
         case "CLASS":
         case "PUBLIC":
         case "STATIC":
         case "VOID":
+        case "STRING_TYPE":
         case "LLAVE_ABRE":
         case "LLAVE_CIERRA":
+        case "LLAVE_IZQ":
+        case "LLAVE_DER":
+        case "PAR_IZQ":
+        case "PAR_DER":
+        case "PAREN_ABRE":
+        case "PAREN_CIERRA":
+        case "CORCHETE_ABRE":
+        case "CORCHETE_CIERRA":
+        case "CORCHETE_IZQ":
+        case "CORCHETE_DER":
+        case "SEMICOLON":
+        case "DOT":
+        case "COMMA":
           this.pos++;
           break;
 
         default:
-          if (token.value === "main" || token.value === "String" || token.value === "[" || token.value === "]") {
+          if (token.value === "main" || token.value === "String" || token.value === "[" || token.value === "]" || 
+              token.value === "(" || token.value === ")" || token.value === "args" || token.value === "{" || token.value === "}" ||
+              token.value === ";" || token.value === "." || token.value === "," ||
+              token.type === "OPERADOR" || token.type === "NUMERO" || token.type === "ENTERO" || token.type === "DECIMAL" || token.type === "PUNTO_COMA" ||
+              token.type === "TRUE" || token.type === "FALSE" || token.type === "STRING" || token.type === "CHAR" ||
+              token.type === "PLUS" || token.type === "MINUS" || token.type === "MULTIPLY" || token.type === "DIVIDE" ||
+              token.type === "EQUAL_EQUAL" || token.type === "NOT_EQUAL" || token.type === "GREATER" || 
+              token.type === "LESS" || token.type === "GREATER_EQUAL" || token.type === "LESS_EQUAL" ||
+              token.type === "INCREMENT" || token.type === "DECREMENT" ||
+              ["+", "-", "*", "/", "==", "!=", ">", "<", ">=", "<=", "&&", "||", "++", "--"].includes(token.value)) {
             this.pos++;
           } else {
             this.errors.push(
@@ -136,91 +164,17 @@ export class Parser {
     }
     this.pos++;
 
-    const valor = this.tokens[this.pos];
-    if (!valor) {
-      this.errors.push(
-        new Error(
-          "Sintáctico",
-          "EOF",
-          "Falta valor en asignación",
-          id.line,
-          id.column
-        )
-      );
-      return;
-    }
-
-    let traduccion = valor.value;
-
-    if (tipo === "BOOLEAN_TYPE") {
-      if (valor.value === "true") traduccion = "True";
-      else if (valor.value === "false") traduccion = "False";
-    }
-    else if (tipo === "STRING_TYPE" || tipo === "CHAR_TYPE") {
-      traduccion = `"${valor.value}"`;
-    }
-
-    this.pythonCode += `${this.indent}${id.value} = ${traduccion}\n`;
-    this.pos++;
-
-    const fin = this.tokens[this.pos];
-    if (fin && fin.value === ";") this.pos++;
-    else
-      this.errors.push(
-        new Error(
-          "Sintáctico",
-          fin?.value || "EOF",
-          "Se esperaba ';'",
-          id.line,
-          id.column
-        )
-      );
-  }
-
-  asignacionVariable() {
-    const id = this.tokens[this.pos];
-    this.pos++;
-
-    const siguiente = this.tokens[this.pos];
-    
-    if (siguiente?.value === "++") {
-      this.pythonCode += `${this.indent}${id.value} += 1\n`;
-      this.pos++;
-      if (this.tokens[this.pos]?.value === ";") this.pos++;
-      return;
-    }
-    
-    if (siguiente?.value === "--") {
-      this.pythonCode += `${this.indent}${id.value} -= 1\n`;
-      this.pos++;
-      if (this.tokens[this.pos]?.value === ";") this.pos++;
-      return;
-    }
-
-    if (!siguiente || siguiente.value !== "=") {
-      this.errors.push(
-        new Error(
-          "Sintáctico",
-          siguiente?.value || "EOF",
-          "Se esperaba '=', '++' o '--'",
-          siguiente?.line || 0,
-          siguiente?.column || 0
-        )
-      );
-      return;
-    }
-    this.pos++;
-
     let expresion = "";
     while (this.pos < this.tokens.length && this.tokens[this.pos].value !== ";") {
       const tok = this.tokens[this.pos];
       if (tok.type === "STRING") {
         expresion += `"${tok.value}" `;
       } else if (tok.type === "CHAR") {
-        expresion += `"${tok.value}" `;
-      } else if (tok.value === "true") {
+        const charValue = tok.value.replace(/'/g, '');
+        expresion += `"${charValue}" `;
+      } else if (tok.value === "true" || tok.type === "TRUE") {
         expresion += "True ";
-      } else if (tok.value === "false") {
+      } else if (tok.value === "false" || tok.type === "FALSE") {
         expresion += "False ";
       } else {
         expresion += tok.value + " ";
@@ -231,16 +185,55 @@ export class Parser {
     this.pythonCode += `${this.indent}${id.value} = ${expresion.trim()}\n`;
 
     if (this.tokens[this.pos]?.value === ";") this.pos++;
-    else
-      this.errors.push(
-        new Error(
-          "Sintáctico",
-          this.tokens[this.pos]?.value || "EOF",
-          "Se esperaba ';'",
-          id.line,
-          id.column
-        )
-      );
+  }
+
+  asignacionVariable() {
+    const id = this.tokens[this.pos];
+    this.pos++;
+
+    const siguiente = this.tokens[this.pos];
+    
+    if (siguiente?.value === "++" || siguiente?.type === "INCREMENT") {
+      this.pythonCode += `${this.indent}${id.value} += 1\n`;
+      this.pos++;
+      if (this.tokens[this.pos]?.value === ";") this.pos++;
+      return;
+    }
+    
+    if (siguiente?.value === "--" || siguiente?.type === "DECREMENT") {
+      this.pythonCode += `${this.indent}${id.value} -= 1\n`;
+      this.pos++;
+      if (this.tokens[this.pos]?.value === ";") this.pos++;
+      return;
+    }
+
+    if (!siguiente || siguiente.value !== "=") {
+      this.pos--;
+      return;
+    }
+    this.pos++;
+
+    let expresion = "";
+    while (this.pos < this.tokens.length && this.tokens[this.pos].value !== ";") {
+      const tok = this.tokens[this.pos];
+      if (tok.type === "STRING") {
+        expresion += `"${tok.value}" `;
+      } else if (tok.type === "CHAR") {
+        const charValue = tok.value.replace(/'/g, '');
+        expresion += `"${charValue}" `;
+      } else if (tok.value === "true" || tok.type === "TRUE") {
+        expresion += "True ";
+      } else if (tok.value === "false" || tok.type === "FALSE") {
+        expresion += "False ";
+      } else {
+        expresion += tok.value + " ";
+      }
+      this.pos++;
+    }
+
+    this.pythonCode += `${this.indent}${id.value} = ${expresion.trim()}\n`;
+
+    if (this.tokens[this.pos]?.value === ";") this.pos++;
   }
 
   traducirIf() {
@@ -362,7 +355,7 @@ export class Parser {
     if (this.tokens[this.pos]?.value === ")") this.pos++;
     if (this.tokens[this.pos]?.value === "{") this.pos++;
 
-    this.pythonCode += `${this.indent}for ${variable.value} in range(${inicio.value}, ${limite.value}):\n`;
+    this.pythonCode += `${this.indent}for ${variable.value} in range(${inicio.value}, ${limite.value} + 1):\n`;
     this.indent += "    ";
 
     while (
@@ -465,7 +458,8 @@ export class Parser {
       if (tok.type === "STRING") {
         partes.push(`"${tok.value}"`);
       } else if (tok.type === "CHAR") {
-        partes.push(`"${tok.value}"`);
+        const charValue = tok.value.replace(/'/g, '');
+        partes.push(`"${charValue}"`);
       } else if (tok.value === "true") {
         partes.push("True");
       } else if (tok.value === "false") {

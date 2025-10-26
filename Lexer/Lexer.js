@@ -105,48 +105,66 @@ export class Lexer {
         let inicioCol = this.columna;
         let buffer = "";
         let esDecimal = false;
+        let puntosDec = 0;
+        
         while (this.pos < this.texto.length && (this.esDigito(this.texto[this.pos]) || this.texto[this.pos] === ".")) {
             if (this.texto[this.pos] === ".") {
-                if (esDecimal) break;
+                puntosDec++;
+                if (puntosDec > 1) {
+                    buffer += this.texto[this.pos];
+                    this.avanzar();
+                    continue;
+                }
                 esDecimal = true;
             }
             buffer += this.texto[this.pos];
             this.recorrido.push({ estado: "NUM", char: this.texto[this.pos], next: "NUM" });
             this.avanzar();
         }
-        this.tokens.push(new Token(esDecimal ? "DOUBLE" : "INT", buffer, this.linea, inicioCol));
+        
+        if (puntosDec > 1) {
+            this.errors.push(new Error("Léxico", buffer, "Número decimal mal formado", this.linea, inicioCol));
+        } else {
+            this.tokens.push(new Token(esDecimal ? "DOUBLE" : "INT", buffer, this.linea, inicioCol));
+        }
     }
 
     recorrerCadena() {
         let inicioCol = this.columna;
         let buffer = "";
         this.avanzar(); 
-        while (this.pos < this.texto.length && this.texto[this.pos] !== '"') {
+        while (this.pos < this.texto.length && this.texto[this.pos] !== '"' && this.texto[this.pos] !== '\n') {
             buffer += this.texto[this.pos];
             this.avanzar();
         }
-        if (this.pos >= this.texto.length) {
+        if (this.pos >= this.texto.length || this.texto[this.pos] === '\n') {
             this.errors.push(new Error("Léxico", buffer, "Cadena sin cerrar", this.linea, inicioCol));
-            return;
+        } else {
+            this.avanzar();
+            this.tokens.push(new Token("STRING", buffer, this.linea, inicioCol));
         }
-        this.avanzar();
-        this.tokens.push(new Token("STRING", buffer, this.linea, inicioCol));
     }
 
     recorrerCaracter() {
         let inicioCol = this.columna;
         let buffer = "";
         this.avanzar();
-        if (this.pos < this.texto.length) {
-            buffer = this.texto[this.pos];
+        
+        while (this.pos < this.texto.length && this.texto[this.pos] !== "'" && this.texto[this.pos] !== '\n') {
+            buffer += this.texto[this.pos];
             this.avanzar();
         }
+        
         if (this.texto[this.pos] !== "'") {
             this.errors.push(new Error("Léxico", buffer, "Carácter mal formado", this.linea, inicioCol));
-            return;
+        } else {
+            this.avanzar();
+            if (buffer.length !== 1) {
+                this.errors.push(new Error("Léxico", buffer, "Carácter debe tener un solo carácter", this.linea, inicioCol));
+            } else {
+                this.tokens.push(new Token("CHAR", buffer, this.linea, inicioCol));
+            }
         }
-        this.avanzar();
-        this.tokens.push(new Token("CHAR", buffer, this.linea, inicioCol));
     }
 
     recorrerComentarioLinea() {
