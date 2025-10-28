@@ -17,6 +17,7 @@ export const ReservedWords = {
     "args": "ARGS",
     "int": "INT_TYPE",
     "double": "DOUBLE_TYPE",
+    "float": "FLOAT_TYPE",
     "char": "CHAR_TYPE",
     "boolean": "BOOLEAN_TYPE",
     "true": "TRUE",

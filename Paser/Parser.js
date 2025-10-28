@@ -26,6 +26,7 @@ export class Parser {
       switch (token.type) {
         case "INT_TYPE":
         case "DOUBLE_TYPE":
+        case "FLOAT_TYPE":
         case "CHAR_TYPE":
         case "BOOLEAN_TYPE":
           this.declaracionVariable();
@@ -62,6 +63,7 @@ export class Parser {
         case "STATIC":
         case "VOID":
         case "STRING_TYPE":
+        case "FLOAT_TYPE":
         case "LLAVE_ABRE":
         case "LLAVE_CIERRA":
         case "LLAVE_IZQ":
@@ -135,7 +137,7 @@ export class Parser {
     
     if (siguiente?.value === ";") {
       let valorDefecto = "None";
-      if (tipo === "INT_TYPE" || tipo === "DOUBLE_TYPE") {
+      if (tipo === "INT_TYPE" || tipo === "DOUBLE_TYPE" || tipo === "FLOAT_TYPE") {
         valorDefecto = "0";
       } else if (tipo === "BOOLEAN_TYPE") {
         valorDefecto = "False";
@@ -250,14 +252,24 @@ export class Parser {
     let condicion = "";
 
     while (this.pos < this.tokens.length && this.tokens[this.pos].value !== ")") {
-      const val = this.tokens[this.pos].value;
+      const tok = this.tokens[this.pos];
+      const val = tok.value;
 
       if (val === "=" && condicion.trim().endsWith("=")) {
         this.pos++;
         continue;
       }
 
-      condicion += val + " ";
+      if (tok.type === "CHAR") {
+        const charValue = val.replace(/'/g, '');
+        condicion += `"${charValue}" `;
+      } else if (tok.value === "true" || tok.type === "TRUE") {
+        condicion += "True ";
+      } else if (tok.value === "false" || tok.type === "FALSE") {
+        condicion += "False ";
+      } else {
+        condicion += val + " ";
+      }
       this.pos++;
     }
 
@@ -382,14 +394,24 @@ export class Parser {
     let condicion = "";
 
     while (this.pos < this.tokens.length && this.tokens[this.pos].value !== ")") {
-      const val = this.tokens[this.pos].value;
+      const tok = this.tokens[this.pos];
+      const val = tok.value;
 
       if (val === "=" && condicion.trim().endsWith("=")) {
         this.pos++;
         continue;
       }
 
-      condicion += val + " ";
+      if (tok.type === "CHAR") {
+        const charValue = val.replace(/'/g, '');
+        condicion += `"${charValue}" `;
+      } else if (tok.value === "true" || tok.type === "TRUE") {
+        condicion += "True ";
+      } else if (tok.value === "false" || tok.type === "FALSE") {
+        condicion += "False ";
+      } else {
+        condicion += val + " ";
+      }
       this.pos++;
     }
 
